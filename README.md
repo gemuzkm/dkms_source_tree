@@ -98,5 +98,6 @@ Look for an entry similar to:
     systemctl start acronis_mms
     ```
 
-##Conclusion
+## Conclusion
+
 You have successfully installed the SnapAPI module 1.0.7 on RHEL 6.10. If you encounter any issues, please refer to the documentation or seek assistance.
