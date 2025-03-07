@@ -8,7 +8,7 @@ All necessary packages are installed automatically when the agent is installed. 
 
 # Installing the Custom SnapAPI Module 1.0.7 on RHEL 6.10
 
-This guide provides step-by-step instructions for installing the custom SnapAPI module version 1.0.7 on Linux RHEL 6.10 (kernel 2.6.32).
+This guide provides step-by-step instructions for installing the custom SnapAPI module version 1.0.7 on Linux RHEL (Red Hat Enterprise Linux) 6.10 (kernel 2.6.32).
 
 ## Prerequisites
 
@@ -98,5 +98,5 @@ Look for an entry similar to:
     systemctl start acronis_mms
     ```
 
-Conclusion
+##Conclusion
 You have successfully installed the SnapAPI module 1.0.7 on RHEL 6.10. If you encounter any issues, please refer to the documentation or seek assistance.
