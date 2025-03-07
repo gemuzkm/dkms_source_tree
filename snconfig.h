@@ -32,7 +32,7 @@
 #include <linux/kthread.h>
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,0,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
 # error "use a 3.0.0 kernel or later, please"
 #endif
 
