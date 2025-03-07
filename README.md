@@ -2,12 +2,9 @@
 
 All necessary packages are installed automatically when the agent is installed. If needed, you can install them separately:
 
-    ```bash
     sudo yum update
-    ```
-    ```bash
     sudo yum install kernel-devel gcc make elfutils-libelf-devel
-    ```
+    
 
 # Installing the Custom SnapAPI Module 1.0.7 on RHEL 6.10
 
