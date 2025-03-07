@@ -3140,7 +3140,7 @@ SA_STATIC sn_bdev_open_t *sn_blkdev_get_by_dev(dev_t kdev, fmode_t mode, void* h
 	sa_debug(DEBUG_API, "kdev=%x bdev=%p\n", kdev, _bdev);
 	if (!_bdev)
 		return NULL;
-	if (blkdev_get(_bdev, mode, holder) < 0)
+	if (blkdev_get(_bdev, mode) < 0)
 		return NULL;
 	sa_debug(DEBUG_API, "bd_part=%p bd_contains=%p\n", _bdev->bd_part,
 			_bdev->bd_contains);
