@@ -6,6 +6,7 @@
 #include "snconfig.h"
 #include "snapapi.h"
 #include "debug.h"
+#include <linux/version.h>
 
 #ifdef HAVE_BDOPS_SUBMIT_BIO
 #include "kernel_config.h"
@@ -495,16 +496,21 @@ SA_STATIC void sn_thaw_bdev(struct session_struct *session)
 
 SA_STATIC MAKE_BLKDEV_RETURN_VALUE sn_blkdev_put(sn_bdev_open_t *_bdev, fmode_t mode, void *holder)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0)
-	return bdev_fput(_bdev);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+    if (holder) {
+        bd_release(SN_BDEV(_bdev));
+    }
+    return blkdev_put(SN_BDEV(_bdev), mode);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0)
+    return bdev_fput(_bdev);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
-	return bdev_release(_bdev);
+    return bdev_release(_bdev);
 #elif defined(HAVE_BLKDEV_PUT_2ARG_FLAG)
-	return blkdev_put(_bdev, holder);
+    return blkdev_put(_bdev, holder);
 #elif defined(HAVE_BLKDEV_PUT_2ARGS)
-	return blkdev_put(_bdev, mode);
+    return blkdev_put(_bdev, mode);
 #else
-	return blkdev_put(_bdev);
+    return blkdev_put(_bdev);
 #endif
 }
 
@@ -3136,12 +3142,27 @@ SA_STATIC sn_bdev_open_t *sn_blkdev_get_by_dev(dev_t kdev, fmode_t mode, void* h
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
 	_bdev = bdev_open_by_dev(kdev, mode, holder, NULL);
 #elif defined(HAVE_BDGET)
-	_bdev = bdget(kdev);
-	sa_debug(DEBUG_API, "kdev=%x bdev=%p\n", kdev, _bdev);
-	if (!_bdev)
-		return NULL;
-	if (blkdev_get(_bdev, mode) < 0)
-		return NULL;
+    _bdev = bdget(kdev);
+    sa_debug(DEBUG_API, "kdev=%x bdev=%p\n", kdev, _bdev);
+    if (!_bdev)
+        return NULL;
+
+    #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+    if (blkdev_get(_bdev, mode) < 0)
+        return NULL;
+    
+    if (holder) {
+        if (bd_claim(_bdev, holder)) {
+            sa_warn("Failed to claim device %x\n", kdev);
+            blkdev_put(_bdev, mode);
+            return NULL;
+        }
+        sa_debug(DEBUG_API, "Claimed device %x by holder %p\n", kdev, holder);
+    }
+    #else
+    if (blkdev_get(_bdev, mode, holder) < 0)
+        return NULL;
+    #endif
 	sa_debug(DEBUG_API, "bd_part=%p bd_contains=%p\n", _bdev->bd_part,
 			_bdev->bd_contains);
 #elif defined(HAVE_BLKDEV_GET_4ARGS)

@@ -1,0 +1,191 @@
+!!!Если не заработает, то откатить до прелылущего коммита!!!
+
+Вот конкретные изменения, которые нужно внести в код для поддержки ядра 2.6.32:
+
+// В функции sn_blkdev_get_by_dev:
+#elif defined(HAVE_BDGET)
+    _bdev = bdget(kdev);
+    sa_debug(DEBUG_API, "kdev=%x bdev=%p\n", kdev, _bdev);
+    if (!_bdev)
+        return NULL;
+    
+    // Начало изменений
+    #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+    /* Для старых ядер (2.6.32) */
+    if (blkdev_get(_bdev, mode) < 0)
+        return NULL;
+    
+    /* Явная установка владельца через bd_claim() */
+    if (holder) {
+        if (bd_claim(_bdev, holder)) {
+            sa_warn("Failed to claim device %x\n", kdev);
+            blkdev_put(_bdev, mode);
+            return NULL;
+        }
+        sa_debug(DEBUG_API, "Claimed device %x by holder %p\n", kdev, holder);
+    }
+    #else
+    /* Для новых ядер */
+    if (blkdev_get(_bdev, mode, holder) < 0)
+        return NULL;
+    #endif
+    // Конец изменений
+
+
+// В функции sn_blkdev_put:
+// Начало изменений
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+    /* Для старых ядер */
+    if (holder) {
+        bd_release(SN_BDEV(_bdev));
+    }
+    blkdev_put(SN_BDEV(_bdev), mode);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6,9,0)
+    return bdev_release(_bdev);
+#else
+    return bdev_fput(_bdev);
+#endif
+    // Конец изменений
+
+Объяснение изменений:
+
+В sn_blkdev_get_by_dev:
+
+Добавлена условная компиляция #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+
+Для ядер <3.10:
+
+Вызов blkdev_get() с 2 аргументами
+
+Ручная установка владельца через bd_claim()
+
+Обработка ошибок при установке владельца
+
+Для ядер ≥3.10 сохраняется оригинальный вызов с 3 аргументами
+
+В sn_blkdev_put:
+
+Добавлена обработка для старых ядер:
+
+Явный вызов bd_release() для освобождения владельца
+
+Стандартный blkdev_put() с 2 аргументами
+
+Сохранена оригинальная логика для новых версий
+
+Важные нюансы:
+
+Для работы с версиями ядра:
+
+#include <linux/version.h>
+Должен быть подключен в начале файла
+
+В 2.6.32:
+
+bd_claim() возвращает 0 при успехе (а не ошибку)
+
+Порядок аргументов: bd_claim(bdev, holder)
+
+В коде освобождения:
+
+bd_release(bdev);
+Достаточно для снятия блокировки владельца
+
+Полный список изменяемых мест:
+
+Оригинальный код (строки ~3143):
+
+#elif defined(HAVE_BDGET)
+    _bdev = bdget(kdev);
+    sa_debug(DEBUG_API, "kdev=%x bdev=%p\n", kdev, _bdev);
+    if (!_bdev)
+        return NULL;
+    if (blkdev_get(_bdev, mode, holder) < 0)
+        return NULL;
+
+Замена на:
+
+#elif defined(HAVE_BDGET)
+    _bdev = bdget(kdev);
+    sa_debug(DEBUG_API, "kdev=%x bdev=%p\n", kdev, _bdev);
+    if (!_bdev)
+        return NULL;
+
+    #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+    if (blkdev_get(_bdev, mode) < 0)
+        return NULL;
+    
+    if (holder) {
+        if (bd_claim(_bdev, holder)) {
+            sa_warn("Failed to claim device %x\n", kdev);
+            blkdev_put(_bdev, mode);
+            return NULL;
+        }
+        sa_debug(DEBUG_API, "Claimed device %x by holder %p\n", kdev, holder);
+    }
+    #else
+    if (blkdev_get(_bdev, mode, holder) < 0)
+        return NULL;
+    #endif
+Оригинальный код (строки ~3182):
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0)
+    return bdev_fput(_bdev);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
+    return bdev_release(_bdev);
+#elif defined(HAVE_BLKDEV_PUT_2ARG_FLAG)
+    return blkdev_put(_bdev, holder);
+#elif defined(HAVE_BLKDEV_PUT_2ARGS)
+    return blkdev_put(_bdev, mode);
+#else
+    return blkdev_put(_bdev);
+#endif
+
+Замена на:
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+    if (holder) {
+        bd_release(SN_BDEV(_bdev));
+    }
+    return blkdev_put(SN_BDEV(_bdev), mode);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,9,0)
+    return bdev_fput(_bdev);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
+    return bdev_release(_bdev);
+#elif defined(HAVE_BLKDEV_PUT_2ARG_FLAG)
+    return blkdev_put(_bdev, holder);
+#elif defined(HAVE_BLKDEV_PUT_2ARGS)
+    return blkdev_put(_bdev, mode);
+#else
+    return blkdev_put(_bdev);
+#endif
+
+Проверка совместимости:
+
+Для 2.6.32 (LINUX_VERSION_CODE = 132640):
+
+Активируется ветка <3.10.0
+
+Используется bd_claim()/bd_release()
+
+Для 3.10+:
+
+Сохраняется оригинальная логика с holder
+
+Важно! После внесения изменений необходимо:
+
+Проверить доступность bd_claim()/bd_release() в целевом ядре
+
+Убедиться что макросы версий ядра корректно определены
+
+Протестировать блокировку устройств в конкурентном доступе
+
+Эти изменения позволят коду:
+
+Корректно компилироваться под 2.6.32
+
+Сохранить функциональность управления владельцем
+
+Остаться совместимым с современными ядрами
+
+Избежать ошибок типа "too many arguments"
