@@ -31,10 +31,6 @@ This guide provides step-by-step instructions for installing the custom SnapAPI 
 
   Alternatively, you can use:
     
-  ```bash 
-  systemctl stop acronis_mms
-   ```
-
 3. Remove the SnapAPI Module from the Kernel Run the command
 
     ```bash
@@ -95,7 +91,7 @@ Look for an entry similar to:
 14. Start Acronis Processes Restart Acronis processes:
 
     ```bash
-    systemctl start acronis_mms
+    /etc/init.d/acronis_mms start
     ```
 
 ## Conclusion
